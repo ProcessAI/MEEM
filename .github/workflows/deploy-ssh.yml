@@ -20,6 +20,11 @@ env:
   # Absolute path of the web root on the server, e.g. /home/ezio/public_html
   # Set it in: Settings > Secrets and variables > Actions > Variables > New repository variable
   TARGET_DIR: ${{ vars.TARGET_DIR }}
+  # Absolute path of the API directory on the server, e.g. /data/meem-app
+  # Leave the variable unset to deploy the static site only - the API steps are
+  # skipped entirely, which is exactly how this workflow behaved before the
+  # Express backend existed.
+  APP_DIR: ${{ vars.APP_DIR }}
   # Optional repository variable; defaults to 22
   PORT: ${{ vars.SSH_PORT || '22' }}
 
@@ -128,3 +133,74 @@ jobs:
 
           echo "--- deployed contents ---"
           $SSH_CMD "$SSH_USER@$HOST" "ls -la \"$TARGET_DIR\""
+
+          # ---------------------------------------------------------------
+          # API (Express + SQLite). Skipped entirely when APP_DIR is unset.
+          # ---------------------------------------------------------------
+          if [ -z "$APP_DIR" ]; then
+            echo "APP_DIR not set - static site only, skipping API deploy."
+            exit 0
+          fi
+
+          $SSH_CMD "$SSH_USER@$HOST" "test -d \"$APP_DIR\" && test -f \"$APP_DIR/.deploy-ok\"" || {
+            echo "$APP_DIR on $HOST is missing, or has no .deploy-ok marker."
+            exit 1
+          }
+
+          # server/ is synced with --delete so removed routes actually disappear.
+          # node_modules lives one level up in APP_DIR, and data/ is the local-dev
+          # database directory - neither belongs to the build.
+          rsync -rltvz --delete $DRY \
+            --exclude='node_modules/' \
+            --exclude='data/' \
+            -e "$SSH_CMD" \
+            server/ "$SSH_USER@$HOST:$APP_DIR/server/"
+
+          # No --delete here: this must not touch node_modules/ or .deploy-ok.
+          rsync -rltvz $DRY \
+            -e "$SSH_CMD" \
+            package.json package-lock.json "$SSH_USER@$HOST:$APP_DIR/"
+
+          if [ -n "$DRY" ]; then
+            echo "DRY RUN - skipping npm ci, restart and health check."
+            exit 0
+          fi
+
+          # Dependencies are installed on the server so better-sqlite3's native
+          # binary is built against the Node that actually runs it.
+          $SSH_CMD "$SSH_USER@$HOST" "cd \"$APP_DIR\" && npm ci --omit=dev"
+          $SSH_CMD "$SSH_USER@$HOST" "sudo -n systemctl restart meem-api"
+
+      - name: Health check
+        if: ${{ inputs.dry_run != true && vars.APP_DIR != '' }}
+        env:
+          SSHPASS: ${{ secrets.PASSWORD }}
+          SSH_USER: ${{ secrets.USER }}
+          HOST: ${{ secrets.HOST }}
+        run: |
+          set -euo pipefail
+          SSH_CMD="sshpass -e ssh -p $PORT -o StrictHostKeyChecking=yes -o BatchMode=no"
+
+          # 1. The process itself is up and can open the database.
+          $SSH_CMD "$SSH_USER@$HOST" '
+            for i in $(seq 1 15); do
+              if curl -fsS --max-time 5 http://127.0.0.1:3001/api/resultados >/dev/null 2>&1; then
+                echo "API responding on 127.0.0.1:3001"; exit 0
+              fi
+              sleep 2
+            done
+            echo "API did not come up. Recent logs:"
+            journalctl -u meem-api -n 40 --no-pager 2>/dev/null \
+              || sudo -n journalctl -u meem-api -n 40 --no-pager 2>/dev/null \
+              || echo "(logs unavailable - add deploy to the systemd-journal group)"
+            exit 1
+          '
+
+          # 2. nginx actually proxies it - a misrouted prefix returns the SPA
+          #    fallback with a 200 and text/html, which would otherwise look fine.
+          CT="$(curl -sS -o /dev/null -w '%{content_type}' --max-time 15 "https://$HOST/api/resultados")"
+          echo "public /api/resultados content-type: $CT"
+          case "$CT" in
+            application/json*) echo "Proxy OK." ;;
+            *) echo "Expected JSON but got '$CT' - nginx is not proxying /api/ to the API."; exit 1 ;;
+          esac

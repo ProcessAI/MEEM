@@ -4,11 +4,14 @@ import { fileURLToPath } from 'url'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 
-// O arquivo do banco fica em server/data/meem.db (criado automaticamente)
-const dbPath = path.join(__dirname, 'data', 'meem.db')
+// Em desenvolvimento o banco fica em server/data/meem.db (criado
+// automaticamente). Em produção, MEEM_DB_PATH aponta para um caminho FORA da
+// pasta publicada pelo deploy — o deploy sincroniza com `rsync --delete`, que
+// apagaria qualquer arquivo dentro da pasta publicada que não venha do build.
+const dbPath = process.env.MEEM_DB_PATH || path.join(__dirname, 'data', 'meem.db')
 
 import fs from 'fs'
-const dataDir = path.join(__dirname, 'data')
+const dataDir = path.dirname(dbPath)
 if (!fs.existsSync(dataDir)) {
   fs.mkdirSync(dataDir, { recursive: true })
 }
