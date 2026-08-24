@@ -4,6 +4,10 @@ const GameContext = createContext()
 
 export function GameProvider({ children }) {
   const [gameAnswers, setGameAnswers] = useState({
+    nome: '',
+    email: '',
+    idade: '',
+    escolaridade: '',
     diaSemana: null,
     ano: null,
     diaMes: null,
@@ -37,6 +41,14 @@ export function GameProvider({ children }) {
     setGameAnswers(prev => ({
       ...prev,
       [question]: value
+    }))
+  }
+
+  // Salva os dados de cadastro (nome, email, idade, escolaridade) de uma vez
+  const setParticipante = (dados) => {
+    setGameAnswers(prev => ({
+      ...prev,
+      ...dados
     }))
   }
 
@@ -113,11 +125,11 @@ export function GameProvider({ children }) {
   }
 
   const calculateBlock11Score = () => {
-    // 1 point per correctly placed pentagon (max 2 points)
+    // 0.5 ponto por pentágono corretamente posicionado (máximo 1.0 no total)
     let score = 0
     if (gameAnswers.pentagonos && gameAnswers.pentagonos.length > 0) {
       gameAnswers.pentagonos.forEach(pentagon => {
-        if (pentagon.correct) score += 1
+        if (pentagon.correct) score += 0.5
       })
     }
     return score
@@ -130,9 +142,17 @@ export function GameProvider({ children }) {
   }
 
   const calculateBlock9Score = () => {
-    const correctPhrase = 'lalala'
-    if (gameAnswers.palmas && gameAnswers.palmas.toLowerCase().includes(correctPhrase)) {
-      return 1
+    const correctPhrase = 'lalalala'
+    if (gameAnswers.palmas) {
+      // Remove espaços, pontuação e deixa minúsculo antes de comparar,
+      // pra "la la la", "lá lá lá!", etc. também serem aceitos
+      const normalized = gameAnswers.palmas
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos (lá -> la)
+        .replace(/[^a-z]/g, '') // remove espaços, pontuação, números
+      if (normalized.includes(correctPhrase)) {
+        return 1
+      }
     }
     return 0
   }
@@ -223,7 +243,7 @@ export function GameProvider({ children }) {
   }
 
   return (
-    <GameContext.Provider value={{ gameAnswers, setAnswer, calculateBlock1Score, calculateBlock2Score, calculateBlock3Score, calculateBlock4Score, calculateBlock5Score, calculateBlock6Score, calculateBlock7Score, calculateBlock8Score, calculateBlock9Score, calculateBlock10Score, calculateBlock11Score, calculateTotalScore }}>
+    <GameContext.Provider value={{ gameAnswers, setAnswer, setParticipante, calculateBlock1Score, calculateBlock2Score, calculateBlock3Score, calculateBlock4Score, calculateBlock5Score, calculateBlock6Score, calculateBlock7Score, calculateBlock8Score, calculateBlock9Score, calculateBlock10Score, calculateBlock11Score, calculateTotalScore }}>
       {children}
     </GameContext.Provider>
   )

@@ -56,12 +56,12 @@ function ImageIdentification3() {
               <ImageIcon className="w-8 h-8 text-primary-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-800">
-              Identifique o Papel Dobrado ao Meio
+              Identifique o Papel Dobrado
             </h2>
           </div>
           
           <p className="text-gray-500 mb-8">
-            Selecione a imagem que representa um papel dobrado ao meio (origami simples)
+            Selecione a imagem que representa um papel dobrado (origami simples)
           </p>
           
           <div className="grid grid-cols-4 gap-4 mb-8">

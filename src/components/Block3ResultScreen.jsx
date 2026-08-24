@@ -7,14 +7,15 @@ function Block3ResultScreen() {
   const { gameAnswers, calculateBlock3Score } = useGame()
   
   const score = calculateBlock3Score()
+  const maxScore = 9
   const correctWords = ['pote', 'ralo', 'anzol']
 
   const calculateScreenScore = (palavras) => {
     let screenScore = 0
     palavras.forEach(word => {
-      if (word && correctWords.includes(word.toLowerCase())) screenScore += 0.34
+      if (word && correctWords.includes(word.toLowerCase())) screenScore += 1
     })
-    return Math.round(screenScore * 100) / 100
+    return screenScore
   }
 
   const screen1Score = calculateScreenScore(gameAnswers.palavras1)
@@ -43,14 +44,14 @@ function Block3ResultScreen() {
   ]
 
   const getScoreColor = () => {
-    const percentage = (score / 3.06) * 100
+    const percentage = (score / maxScore) * 100
     if (percentage >= 75) return 'text-green-600'
     if (percentage >= 50) return 'text-yellow-600'
     return 'text-red-600'
   }
 
   const getScoreMessage = () => {
-    const percentage = (score / 3.06) * 100
+    const percentage = (score / maxScore) * 100
     if (percentage === 100) return 'Excelente! Todas as respostas corretas!'
     if (percentage >= 75) return 'Muito bom! Você acertou a maioria!'
     if (percentage >= 50) return 'Bom! Continue praticando!'
@@ -73,7 +74,7 @@ function Block3ResultScreen() {
           
           <div className="text-center mb-8">
             <div className={`text-6xl font-bold ${getScoreColor()} mb-2`}>
-              {score}/3.06
+              {score}/{maxScore}
             </div>
             <p className="text-gray-600 font-medium">
               {getScoreMessage()}
@@ -106,7 +107,7 @@ function Block3ResultScreen() {
                   </div>
                   <div className="text-right">
                     <p className={`text-sm font-medium ${result.isCorrect ? 'text-green-600' : 'text-gray-500'}`}>
-                      {result.score}
+                      {result.score}/3
                     </p>
                   </div>
                 </div>

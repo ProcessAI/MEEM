@@ -9,6 +9,15 @@ function ClapDetection() {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [isSupported, setIsSupported] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const errorMessages = {
+    'not-allowed': 'Permissão de microfone negada. Libere o acesso ao microfone nas configurações do navegador.',
+    'service-not-allowed': 'O navegador bloqueou o microfone.',
+    'no-speech': 'Nenhuma fala foi detectada. Tente novamente.',
+    'audio-capture': 'Nenhum microfone foi encontrado neste dispositivo.',
+    'network': 'Erro de conexão com o serviço de reconhecimento de voz. Verifique sua internet.',
+  }
 
   useEffect(() => {
     // Check if speech recognition is supported
@@ -25,6 +34,7 @@ function ClapDetection() {
       return
     }
 
+    setErrorMsg('')
     const recognition = new SpeechRecognition()
     recognition.lang = 'pt-BR'
     recognition.continuous = false
@@ -43,6 +53,7 @@ function ClapDetection() {
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error)
       setIsListening(false)
+      setErrorMsg(errorMessages[event.error] || `Não foi possível usar o microfone (erro: ${event.error}).`)
     }
 
     recognition.onend = () => {
@@ -81,7 +92,7 @@ function ClapDetection() {
               <Mic className="w-8 h-8 text-primary-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-800">
-              Diga "Lalala"
+              Diga "Lalalala"
             </h2>
           </div>
           
@@ -107,6 +118,12 @@ function ClapDetection() {
               <p className="text-red-700 text-center">
                 Seu navegador não suporta reconhecimento de voz. Por favor, use o Chrome ou Edge.
               </p>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-700 text-center text-sm">{errorMsg}</p>
             </div>
           )}
           
