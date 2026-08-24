@@ -61,7 +61,7 @@ function DayOfMonth() {
               className={`w-full px-6 py-4 text-2xl text-center border-2 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-transparent transition-all ${
                 error ? 'border-red-500' : 'border-gray-300'
               }`}
-              placeholder="09"
+              placeholder=""
               maxLength={2}
             />
             {error && (

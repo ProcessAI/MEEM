@@ -1,11 +1,15 @@
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGame } from '../context/GameContext'
-import { Trophy, Home, RefreshCw, CheckCircle2, XCircle, Download } from 'lucide-react'
+import { Trophy, Home, RefreshCw, CheckCircle2, XCircle, Download, Database, AlertTriangle, Loader2 } from 'lucide-react'
 import * as XLSX from 'xlsx'
 
 function CombinedResultScreen() {
   const navigate = useNavigate()
   const { gameAnswers, calculateBlock1Score, calculateBlock2Score, calculateBlock3Score, calculateBlock4Score, calculateBlock5Score, calculateBlock6Score, calculateBlock7Score, calculateBlock8Score, calculateBlock9Score, calculateBlock10Score, calculateBlock11Score, calculateTotalScore } = useGame()
+
+  const [statusSalvamento, setStatusSalvamento] = useState('salvando') // 'salvando' | 'sucesso' | 'erro'
+  const jaSalvouRef = useRef(false)
   
   const block1Score = calculateBlock1Score()
   const block2Score = calculateBlock2Score()
@@ -19,7 +23,7 @@ function CombinedResultScreen() {
   const block10Score = calculateBlock10Score()
   const block11Score = calculateBlock11Score()
   const totalScore = calculateTotalScore()
-  const totalQuestions = 29.06
+  const totalQuestions = 35
   
   const getScoreColor = (score, max) => {
     const percentage = (score / max) * 100
@@ -27,6 +31,55 @@ function CombinedResultScreen() {
     if (percentage >= 50) return 'text-yellow-600'
     return 'text-red-600'
   }
+
+  // Salva automaticamente o resultado no banco de dados (SQLite via backend) assim que a tela abre
+  useEffect(() => {
+    if (jaSalvouRef.current) return
+    jaSalvouRef.current = true
+
+    const now = new Date()
+    const dateStr = now.toLocaleDateString('pt-BR')
+    const timeStr = now.toLocaleTimeString('pt-BR')
+
+    const payload = {
+      nome: gameAnswers.nome || 'Não informado',
+      email: gameAnswers.email || '',
+      idade: gameAnswers.idade || null,
+      escolaridade: gameAnswers.escolaridade || '',
+      dataPartida: dateStr,
+      horaPartida: timeStr,
+      bloco1: block1Score,
+      bloco2: block2Score,
+      bloco3: block3Score,
+      bloco4: block4Score,
+      bloco5: block5Score,
+      bloco6: block6Score,
+      bloco7: block7Score,
+      bloco8: block8Score,
+      bloco9: block9Score,
+      bloco10: block10Score,
+      bloco11: block11Score,
+      pontuacaoTotal: totalScore,
+      pontuacaoMaxima: totalQuestions,
+      respostas: gameAnswers
+    }
+
+    fetch('/api/resultados', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    })
+      .then(res => {
+        if (!res.ok) throw new Error('Falha ao salvar')
+        return res.json()
+      })
+      .then(() => setStatusSalvamento('sucesso'))
+      .catch(err => {
+        console.error('Erro ao salvar resultado no banco:', err)
+        setStatusSalvamento('erro')
+      })
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
 
   const getOverallMessage = () => {
     const percentage = (totalScore / totalQuestions) * 100
@@ -37,46 +90,48 @@ function CombinedResultScreen() {
     return 'Continue praticando!'
   }
 
-  const handleExportToExcel = () => {
-    const now = new Date()
-    const dateStr = now.toLocaleDateString('pt-BR')
-    const timeStr = now.toLocaleTimeString('pt-BR')
-    
-    // Save current result to localStorage
-    const currentResult = {
-      'Nome': gameAnswers.nome || '',
-      'Idade': gameAnswers.idade || '',
-      'Escolaridade': gameAnswers.escolaridade || '',
-      'Data da Partida': dateStr,
-      'Horário da Partida': timeStr,
-      'Bloco 1 - Orientação Temporal': block1Score,
-      'Bloco 2 - Conhecimento Geral': block2Score,
-      'Bloco 3 - Memória de Palavras': block3Score,
-      'Bloco 4 - Desafio Matemático': block4Score,
-      'Bloco 5 - Memória de Palavras': block5Score,
-      'Bloco 6 - Identificação de Imagens': block6Score,
-      'Bloco 7 - Reconhecimento de Fala': block7Score,
-      'Bloco 8 - Instruções e Fala': block8Score,
-      'Bloco 9 - Reconhecimento de Fala': block9Score,
-      'Bloco 10 - Ordenação de Frase': block10Score,
-      'Bloco 11 - Encaixe de Pentágonos': block11Score,
-      'Pontuação Total': totalScore,
-      'Pontuação Máxima': totalQuestions,
-      'Porcentagem de Acertos': `${Math.round((totalScore / totalQuestions) * 100)}%`
+  // Exporta TODOS os resultados já salvos no banco de dados (não só os deste navegador)
+  const handleExportToExcel = async () => {
+    try {
+      const res = await fetch('/api/resultados')
+      if (!res.ok) throw new Error('Falha ao buscar resultados')
+      const todos = await res.json()
+
+      const linhas = todos.map(r => ({
+        'Nome': r.nome,
+        'Email': r.email || '',
+        'Idade': r.idade || '',
+        'Escolaridade': r.escolaridade || '',
+        'Data da Partida': r.data_partida,
+        'Horário da Partida': r.hora_partida,
+        'Bloco 1 - Orientação Temporal': r.bloco1,
+        'Bloco 2 - Conhecimento Geral': r.bloco2,
+        'Bloco 3 - Memória de Palavras': r.bloco3,
+        'Bloco 4 - Desafio Matemático': r.bloco4,
+        'Bloco 5 - Memória de Palavras': r.bloco5,
+        'Bloco 6 - Identificação de Imagens': r.bloco6,
+        'Bloco 7 - Reconhecimento de Fala': r.bloco7,
+        'Bloco 8 - Instruções e Fala': r.bloco8,
+        'Bloco 9 - Reconhecimento de Fala': r.bloco9,
+        'Bloco 10 - Ordenação de Frase': r.bloco10,
+        'Bloco 11 - Encaixe de Pentágonos': r.bloco11,
+        'Pontuação Total': r.pontuacao_total,
+        'Pontuação Máxima': r.pontuacao_maxima,
+        'Porcentagem de Acertos': `${Math.round((r.pontuacao_total / r.pontuacao_maxima) * 100)}%`
+      }))
+
+      const worksheet = XLSX.utils.json_to_sheet(linhas)
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados')
+
+      const now = new Date()
+      const dateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-')
+      const timeStr = now.toLocaleTimeString('pt-BR').replace(/:/g, '-')
+      XLSX.writeFile(workbook, `MEEM_Resultados_Todos_${dateStr}_${timeStr}.xlsx`)
+    } catch (err) {
+      console.error('Erro ao exportar do banco de dados:', err)
+      alert('Não foi possível buscar os resultados do banco de dados. Verifique se o servidor está rodando.')
     }
-    
-    // Get existing results from localStorage
-    const existingResults = JSON.parse(localStorage.getItem('meemResults') || '[]')
-    existingResults.push(currentResult)
-    localStorage.setItem('meemResults', JSON.stringify(existingResults))
-    
-    // Export all results to Excel
-    const worksheet = XLSX.utils.json_to_sheet(existingResults)
-    const workbook = XLSX.utils.book_new()
-    XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados')
-    
-    const fileName = `MEEM_Resultados_Todos_${dateStr.replace(/\//g, '-')}_${timeStr.replace(/:/g, '-')}.xlsx`
-    XLSX.writeFile(workbook, fileName)
   }
 
   return (
@@ -92,6 +147,24 @@ function CombinedResultScreen() {
           <h2 className="text-3xl font-bold text-gray-800 text-center mb-2">
             Resultado Completo
           </h2>
+
+          <div className="flex justify-center mb-4">
+            {statusSalvamento === 'salvando' && (
+              <span className="flex items-center gap-2 text-sm text-gray-500">
+                <Loader2 className="w-4 h-4 animate-spin" /> Salvando resultado no banco de dados...
+              </span>
+            )}
+            {statusSalvamento === 'sucesso' && (
+              <span className="flex items-center gap-2 text-sm text-green-600">
+                <Database className="w-4 h-4" /> Resultado salvo no banco de dados
+              </span>
+            )}
+            {statusSalvamento === 'erro' && (
+              <span className="flex items-center gap-2 text-sm text-red-600">
+                <AlertTriangle className="w-4 h-4" /> Não foi possível salvar no banco (servidor offline?)
+              </span>
+            )}
+          </div>
           
           <div className="text-center mb-8">
             <div className={`text-7xl font-bold ${getScoreColor(totalScore, totalQuestions)} mb-2`}>
@@ -130,11 +203,11 @@ function CombinedResultScreen() {
             <div className="bg-gradient-to-br from-purple-50 to-violet-100 rounded-2xl p-4">
               <h3 className="font-semibold text-gray-700 mb-2 text-center text-xs">Bloco 3 - Memória de Palavras</h3>
               <div className="text-center">
-                <div className={`text-3xl font-bold ${getScoreColor(block3Score, 3.06)} mb-1`}>
-                  {block3Score}/3.06
+                <div className={`text-3xl font-bold ${getScoreColor(block3Score, 9)} mb-1`}>
+                  {block3Score}/9
                 </div>
                 <p className="text-xs text-gray-600">
-                  {Math.round((block3Score / 3.06) * 100)}% de acertos
+                  {Math.round((block3Score / 9) * 100)}% de acertos
                 </p>
               </div>
             </div>
@@ -249,28 +322,28 @@ function CombinedResultScreen() {
             </p>
           </div>
           
-          <div className="flex gap-3 mb-6">
+          <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <button
               onClick={handleExportToExcel}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm sm:text-base"
             >
-              <Download className="w-5 h-5" />
+              <Download className="w-5 h-5 shrink-0" />
               Exportar Excel (Todos)
             </button>
             
             <button
               onClick={() => navigate('/')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700 text-sm sm:text-base"
             >
-              <Home className="w-5 h-5" />
+              <Home className="w-5 h-5 shrink-0" />
               Início
             </button>
             
             <button
               onClick={() => navigate('/dias-embaralhados')}
-              className="flex-1 flex items-center justify-center gap-2 py-3 px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700 text-sm sm:text-base"
             >
-              <RefreshCw className="w-5 h-5" />
+              <RefreshCw className="w-5 h-5 shrink-0" />
               Jogar Novamente
             </button>
           </div>

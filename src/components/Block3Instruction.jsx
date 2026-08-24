@@ -36,7 +36,7 @@ function Block3Instruction() {
             Siga o comando abaixo
           </p>
           
-          <div className="bg-gradient-to-r from-violet-50 to-purple-100 rounded-2xl p-8 mb-8 text-center">
+          <div className="bg-gradient-to-r from-violet-50 to-purple-100 rounded-2xl p-4 sm:p-8 mb-8 text-center">
             <button
               onClick={speakCommand}
               className="flex items-center justify-center gap-2 text-gray-600 hover:text-primary-600 transition-colors mb-4"
@@ -44,18 +44,18 @@ function Block3Instruction() {
               <Volume2 className="w-6 h-6" />
               <span className="font-medium">Ouvir o comando</span>
             </button>
-            <p className="text-2xl font-bold text-gray-800 mb-4">
+            <p className="text-xl sm:text-2xl font-bold text-gray-800 mb-4">
               "Leia, e memorize as seguintes palavras:"
             </p>
-            <div className="flex justify-center gap-8 mt-6">
-              <div className="bg-white rounded-xl px-8 py-4 shadow-md">
-                <p className="text-3xl font-bold text-primary-600">Anzol</p>
+            <div className="flex flex-wrap justify-center gap-3 sm:gap-8 mt-6">
+              <div className="bg-white rounded-xl px-5 py-3 sm:px-8 sm:py-4 shadow-md">
+                <p className="text-xl sm:text-3xl font-bold text-primary-600">Anzol</p>
               </div>
-              <div className="bg-white rounded-xl px-8 py-4 shadow-md">
-                <p className="text-3xl font-bold text-primary-600">Ralo</p>
+              <div className="bg-white rounded-xl px-5 py-3 sm:px-8 sm:py-4 shadow-md">
+                <p className="text-xl sm:text-3xl font-bold text-primary-600">Ralo</p>
               </div>
-              <div className="bg-white rounded-xl px-8 py-4 shadow-md">
-                <p className="text-3xl font-bold text-primary-600">Pote</p>
+              <div className="bg-white rounded-xl px-5 py-3 sm:px-8 sm:py-4 shadow-md">
+                <p className="text-xl sm:text-3xl font-bold text-primary-600">Pote</p>
               </div>
             </div>
           </div>

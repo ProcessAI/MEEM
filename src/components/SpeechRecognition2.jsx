@@ -9,6 +9,15 @@ function SpeechRecognition2() {
   const [isListening, setIsListening] = useState(false)
   const [transcript, setTranscript] = useState('')
   const [isSupported, setIsSupported] = useState(true)
+  const [errorMsg, setErrorMsg] = useState('')
+
+  const errorMessages = {
+    'not-allowed': 'Permissão de microfone negada. Libere o acesso ao microfone nas configurações do navegador, ou digite a frase manualmente abaixo.',
+    'service-not-allowed': 'O navegador bloqueou o microfone (comum quando o site não usa HTTPS ou localhost). Digite a frase manualmente abaixo.',
+    'no-speech': 'Nenhuma fala foi detectada. Tente novamente ou digite a frase manualmente.',
+    'audio-capture': 'Nenhum microfone foi encontrado neste dispositivo. Digite a frase manualmente abaixo.',
+    'network': 'Erro de conexão com o serviço de reconhecimento de voz. Verifique sua internet ou digite a frase manualmente.',
+  }
 
   useEffect(() => {
     // Check if speech recognition is supported
@@ -25,6 +34,7 @@ function SpeechRecognition2() {
       return
     }
 
+    setErrorMsg('')
     const recognition = new SpeechRecognition()
     recognition.lang = 'pt-BR'
     recognition.continuous = false
@@ -43,6 +53,7 @@ function SpeechRecognition2() {
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error)
       setIsListening(false)
+      setErrorMsg(errorMessages[event.error] || `Não foi possível usar o microfone (erro: ${event.error}). Digite a frase manualmente abaixo.`)
     }
 
     recognition.onend = () => {
@@ -107,8 +118,14 @@ function SpeechRecognition2() {
           {!isSupported && (
             <div className="bg-red-50 border border-red-200 rounded-xl p-4 mb-8">
               <p className="text-red-700 text-center">
-                Seu navegador não suporta reconhecimento de voz. Por favor, use o Chrome ou Edge.
+                Seu navegador não suporta reconhecimento de voz. Por favor, use o Chrome ou Edge, ou digite a frase manualmente abaixo.
               </p>
+            </div>
+          )}
+
+          {errorMsg && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+              <p className="text-amber-700 text-center text-sm">{errorMsg}</p>
             </div>
           )}
           

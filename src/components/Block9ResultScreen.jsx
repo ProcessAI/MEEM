@@ -11,10 +11,10 @@ function Block9ResultScreen() {
 
   const results = [
     {
-      question: 'Diga "Lalala"',
+      question: 'Diga "La la la la"',
       userAnswer: gameAnswers.palmas || 'Não respondido',
-      correctAnswer: 'Lalala',
-      isCorrect: gameAnswers.palmas && gameAnswers.palmas.toLowerCase().includes('lalala')
+      correctAnswer: 'La la la la',
+      isCorrect: score === 1
     }
   ]
 
@@ -24,7 +24,7 @@ function Block9ResultScreen() {
   }
 
   const getScoreMessage = () => {
-    if (score === 1) return 'Excelente! Você disse Lalala!'
+    if (score === 1) return 'Excelente! Você disse Lalalala!'
     return 'Continue praticando!'
   }
 
