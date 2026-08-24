@@ -10,12 +10,14 @@ function Block11ResultScreen() {
   const maxScore = 1
 
   const results = gameAnswers.pentagonos && gameAnswers.pentagonos.length > 0 
-    ? gameAnswers.pentagonos.map(p => ({
-        question: `Pentágono ${p.id}`,
-        userAnswer: p.correct ? 'Posicionado corretamente' : 'Não posicionado corretamente',
-        correctAnswer: 'Posicionado corretamente',
-        isCorrect: p.correct
-      }))
+    ? gameAnswers.pentagonos
+        .filter(p => p.correct)
+        .map(p => ({
+          question: `Pentágono ${p.id}`,
+          userAnswer: 'Posicionado corretamente',
+          correctAnswer: 'Posicionado corretamente',
+          isCorrect: p.correct
+        }))
     : []
 
   const getScoreColor = () => {

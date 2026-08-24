@@ -1,9 +1,11 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { User, Mail, Calendar, ArrowLeft } from 'lucide-react'
+import { useGame } from '../context/GameContext'
 
 function RegistrationScreen() {
   const navigate = useNavigate()
+  const { setParticipante } = useGame()
   const [formData, setFormData] = useState({
     nome: '',
     email: '',
@@ -72,7 +74,7 @@ function RegistrationScreen() {
       return
     }
     
-    console.log('Dados do cadastro:', formData)
+    setParticipante(formData)
     navigate('/dias-embaralhados')
   }
 
