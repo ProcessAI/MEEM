@@ -11,9 +11,9 @@ function Block9ResultScreen() {
 
   const results = [
     {
-      question: 'Diga "La la la la"',
+      question: 'Diga "Lalalala"',
       userAnswer: gameAnswers.palmas || 'Não respondido',
-      correctAnswer: 'La la la la',
+      correctAnswer: 'Lalalala',
       isCorrect: score === 1
     }
   ]

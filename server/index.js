@@ -108,6 +108,68 @@ app.delete('/api/resultados/:id', (req, res) => {
   }
 })
 
+// Cache simples em memória pra não bater no serviço externo repetidamente
+// com coordenadas muito próximas (arredonda pra ~1km de precisão)
+const geocodeCache = new Map()
+
+// Traduz coordenadas (lat/lon) em país e estado, usando o Nominatim
+// (OpenStreetMap, serviço gratuito). Fica no backend (não no navegador do
+// usuário) pra: 1) não expor a localização de cada pessoa direto pra um
+// serviço externo, e 2) controlar o volume de chamadas com um único
+// User-Agent, evitando bloqueio por uso excessivo quando várias pessoas
+// usam o site ao mesmo tempo.
+app.get('/api/geocode', async (req, res) => {
+  try {
+    const lat = parseFloat(req.query.lat)
+    const lon = parseFloat(req.query.lon)
+    if (Number.isNaN(lat) || Number.isNaN(lon)) {
+      return res.status(400).json({ erro: 'lat e lon são obrigatórios e devem ser números.' })
+    }
+
+    const cacheKey = `${lat.toFixed(2)},${lon.toFixed(2)}`
+    if (geocodeCache.has(cacheKey)) {
+      return res.json(geocodeCache.get(cacheKey))
+    }
+
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=pt-BR&zoom=8`
+    const response = await fetch(url, {
+      headers: {
+        // Nominatim pede um User-Agent identificável para uso não-abusivo
+        'User-Agent': 'MEEM-App/1.0 (uso academico - teste cognitivo)'
+      }
+    })
+
+    if (!response.ok) {
+      throw new Error(`Nominatim respondeu ${response.status}`)
+    }
+
+    const data = await response.json()
+
+    // Classifica rural x urbano com base nos campos de endereço que o
+    // OpenStreetMap retorna. Presença de cidade/bairro = urbano;
+    // só vilarejo/povoado/fazenda = rural.
+    const address = data.address || {}
+    const urbanKeys = ['city', 'town', 'suburb', 'city_district', 'borough', 'quarter', 'municipality']
+    const ruralKeys = ['village', 'hamlet', 'isolated_dwelling', 'farm']
+    let tipoLocal = 'Urbano' // padrão seguro quando não dá pra classificar
+    if (ruralKeys.some(key => address[key]) && !urbanKeys.some(key => address[key])) {
+      tipoLocal = 'Rural'
+    }
+
+    const result = {
+      pais: address.country || null,
+      estado: address.state || null,
+      tipoLocal
+    }
+
+    geocodeCache.set(cacheKey, result)
+    res.json(result)
+  } catch (err) {
+    console.error('Erro ao geocodificar:', err)
+    res.status(502).json({ erro: 'Não foi possível determinar a localização.' })
+  }
+})
+
 // ---------- Servir o front-end buildado (produção) ----------
 const distPath = path.join(__dirname, '..', 'dist')
 app.use(express.static(distPath))
@@ -137,13 +199,6 @@ function getLocalIPs() {
 // levantamos um HTTPS com certificado autoassinado, só pra permitir testar
 // o microfone pelo celular na mesma rede Wi-Fi.
 const isHostedPlatform = !!process.env.PORT
-
-app.listen(HTTP_PORT, '0.0.0.0', () => {
-  console.log(`\n✅ Servidor MEEM rodando na porta ${HTTP_PORT}`)
-  if (!isHostedPlatform) {
-    console.log(`   Neste computador: http://localhost:${HTTP_PORT}`)
-  }
-})
 
 if (!isHostedPlatform) {
   // ---------- Servidor HTTPS local (necessário para o microfone funcionar via IP de rede) ----------

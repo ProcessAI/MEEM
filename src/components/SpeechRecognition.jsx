@@ -12,11 +12,11 @@ function SpeechRecognition() {
   const [errorMsg, setErrorMsg] = useState('')
 
   const errorMessages = {
-    'not-allowed': 'Permissão de microfone negada. Libere o acesso ao microfone nas configurações do navegador, ou digite a frase manualmente abaixo.',
-    'service-not-allowed': 'O navegador bloqueou o microfone (comum quando o site não usa HTTPS ou localhost). Digite a frase manualmente abaixo.',
-    'no-speech': 'Nenhuma fala foi detectada. Tente novamente ou digite a frase manualmente.',
-    'audio-capture': 'Nenhum microfone foi encontrado neste dispositivo. Digite a frase manualmente abaixo.',
-    'network': 'Erro de conexão com o serviço de reconhecimento de voz. Verifique sua internet ou digite a frase manualmente.',
+    'not-allowed': 'Permissão de microfone negada. Libere o acesso ao microfone nas configurações do navegador.',
+    'service-not-allowed': 'O navegador bloqueou o microfone (comum quando o site não usa HTTPS ou localhost).',
+    'no-speech': 'Nenhuma fala foi detectada. Tente novamente.',
+    'audio-capture': 'Nenhum microfone foi encontrado neste dispositivo. Verifique se o microfone está conectado e funcionando.',
+    'network': 'Erro de conexão com o serviço de reconhecimento de voz. Verifique sua internet.',
   }
 
   useEffect(() => {
@@ -53,7 +53,7 @@ function SpeechRecognition() {
     recognition.onerror = (event) => {
       console.error('Speech recognition error:', event.error)
       setIsListening(false)
-      setErrorMsg(errorMessages[event.error] || `Não foi possível usar o microfone (erro: ${event.error}). Digite a frase manualmente abaixo.`)
+      setErrorMsg(errorMessages[event.error] || `Não foi possível usar o microfone (erro: ${event.error}).`)
     }
 
     recognition.onend = () => {
