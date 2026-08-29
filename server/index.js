@@ -11,6 +11,11 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const app = express()
 const HTTP_PORT = process.env.PORT || 3001
 const HTTPS_PORT = process.env.HTTPS_PORT || 3443
+// Em produção o nginx faz o proxy a partir do mesmo servidor, então a API só
+// precisa escutar em 127.0.0.1 e nunca fica exposta direto na internet.
+// Localmente o padrão continua 0.0.0.0, para dar pra abrir pelo celular na
+// mesma rede Wi-Fi.
+const BIND_ADDR = process.env.BIND_ADDR || '0.0.0.0'
 
 app.use(cors())
 app.use(express.json())
@@ -199,6 +204,13 @@ function getLocalIPs() {
 // levantamos um HTTPS com certificado autoassinado, só pra permitir testar
 // o microfone pelo celular na mesma rede Wi-Fi.
 const isHostedPlatform = !!process.env.PORT
+
+app.listen(HTTP_PORT, BIND_ADDR, () => {
+  console.log(`\n✅ Servidor MEEM rodando em ${BIND_ADDR}:${HTTP_PORT}`)
+  if (!isHostedPlatform) {
+    console.log(`   Neste computador: http://localhost:${HTTP_PORT}`)
+  }
+})
 
 if (!isHostedPlatform) {
   // ---------- Servidor HTTPS local (necessário para o microfone funcionar via IP de rede) ----------

@@ -1,0 +1,206 @@
+name: Deploy via SSH
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: 'List what would be uploaded and deleted, without changing the server'
+        type: boolean
+        default: false
+
+concurrency:
+  group: deploy-ssh
+  cancel-in-progress: false
+
+env:
+  # Absolute path of the web root on the server, e.g. /home/ezio/public_html
+  # Set it in: Settings > Secrets and variables > Actions > Variables > New repository variable
+  TARGET_DIR: ${{ vars.TARGET_DIR }}
+  # Absolute path of the API directory on the server, e.g. /data/meem-app
+  # Leave the variable unset to deploy the static site only - the API steps are
+  # skipped entirely, which is exactly how this workflow behaved before the
+  # Express backend existed.
+  APP_DIR: ${{ vars.APP_DIR }}
+  # Optional repository variable; defaults to 22
+  PORT: ${{ vars.SSH_PORT || '22' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check configuration
+        run: |
+          if [ -z "$TARGET_DIR" ]; then
+            echo "Repository variable TARGET_DIR is not set (e.g. /var/www/meem)."
+            echo "Refusing to deploy: this workflow syncs with --delete and would wipe the wrong directory."
+            exit 1
+          fi
+          case "$TARGET_DIR" in
+            /|/root|/home|/var|/var/www|/usr|/etc)
+              echo "TARGET_DIR=$TARGET_DIR is too broad to sync with --delete. Use a dedicated site directory."
+              exit 1
+              ;;
+          esac
+
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build
+        run: npm run build
+
+      - name: Install sshpass
+        run: sudo apt-get update && sudo apt-get install -y sshpass
+
+      - name: Trust server host key
+        env:
+          HOST: ${{ secrets.HOST }}
+          SSH_HOST_KEY: ${{ secrets.SSH_HOST_KEY }}
+        run: |
+          mkdir -p ~/.ssh && chmod 700 ~/.ssh
+          if [ -n "$SSH_HOST_KEY" ]; then
+            # Pinned key: run `ssh-keyscan -p <port> <host>` once locally and store
+            # the output as the SSH_HOST_KEY secret.
+            printf '%s\n' "$SSH_HOST_KEY" >> ~/.ssh/known_hosts
+          else
+            # No pinned key: we trust whatever key answers on this run (same risk
+            # profile as StrictHostKeyChecking=no). Set SSH_HOST_KEY to close this.
+            echo "::warning::SSH_HOST_KEY secret not set - the server's host key is trusted on first sight each run."
+            KEYS="$(ssh-keyscan -p "$PORT" "$HOST" 2>/dev/null || true)"
+            if [ -z "$KEYS" ]; then
+              echo "No host key came back from $HOST:$PORT."
+              echo "The server is unreachable from this runner - firewall, wrong port, or an SSH IP allow-list."
+              exit 1
+            fi
+            printf '%s\n' "$KEYS" >> ~/.ssh/known_hosts
+          fi
+          chmod 600 ~/.ssh/known_hosts
+
+      - name: Deploy dist/ to server
+        env:
+          # sshpass -e reads the password from SSHPASS, so it never appears in the
+          # process list or in an interpolated command line.
+          SSHPASS: ${{ secrets.PASSWORD }}
+          SSH_USER: ${{ secrets.USER }}
+          HOST: ${{ secrets.HOST }}
+          DRY_RUN: ${{ inputs.dry_run }}
+        run: |
+          set -euo pipefail
+          SSH_CMD="sshpass -e ssh -p $PORT -o StrictHostKeyChecking=yes -o BatchMode=no"
+
+          DRY=""
+          if [ "$DRY_RUN" = "true" ]; then
+            DRY="--dry-run"
+            echo "::notice::DRY RUN - nothing on the server will be changed."
+          fi
+
+          # The web root has to exist before anything else is worth trying.
+          $SSH_CMD "$SSH_USER@$HOST" "test -d \"$TARGET_DIR\"" || {
+            echo "$TARGET_DIR does not exist on $HOST, or is not a directory."
+            exit 1
+          }
+
+          # Sentinel guard: rsync --delete removes everything in TARGET_DIR that is
+          # not in dist/, so a mistyped path would wipe a real directory. A real
+          # deploy requires an opt-in marker placed by hand, once:
+          #   ssh user@host 'touch /path/to/webroot/.deploy-ok'
+          # A dry run is deliberately exempt - it changes nothing, and running it
+          # unarmed is how you read the delete list before committing to the path.
+          if [ -z "$DRY" ]; then
+            $SSH_CMD "$SSH_USER@$HOST" "test -f \"$TARGET_DIR/.deploy-ok\"" || {
+              echo "$TARGET_DIR on $HOST has no .deploy-ok marker."
+              echo "Run a dry run first, confirm the delete list, then on the server:"
+              echo "  touch \"$TARGET_DIR/.deploy-ok\""
+              exit 1
+            }
+          fi
+
+          rsync -rltvz --delete $DRY \
+            --exclude='.deploy-ok' \
+            --exclude='.well-known/' \
+            -e "$SSH_CMD" \
+            dist/ "$SSH_USER@$HOST:$TARGET_DIR/"
+
+          echo "--- deployed contents ---"
+          $SSH_CMD "$SSH_USER@$HOST" "ls -la \"$TARGET_DIR\""
+
+          # ---------------------------------------------------------------
+          # API (Express + SQLite). Skipped entirely when APP_DIR is unset.
+          # ---------------------------------------------------------------
+          if [ -z "$APP_DIR" ]; then
+            echo "APP_DIR not set - static site only, skipping API deploy."
+            exit 0
+          fi
+
+          $SSH_CMD "$SSH_USER@$HOST" "test -d \"$APP_DIR\" && test -f \"$APP_DIR/.deploy-ok\"" || {
+            echo "$APP_DIR on $HOST is missing, or has no .deploy-ok marker."
+            exit 1
+          }
+
+          # server/ is synced with --delete so removed routes actually disappear.
+          # node_modules lives one level up in APP_DIR, and data/ is the local-dev
+          # database directory - neither belongs to the build.
+          rsync -rltvz --delete $DRY \
+            --exclude='node_modules/' \
+            --exclude='data/' \
+            -e "$SSH_CMD" \
+            server/ "$SSH_USER@$HOST:$APP_DIR/server/"
+
+          # No --delete here: this must not touch node_modules/ or .deploy-ok.
+          rsync -rltvz $DRY \
+            -e "$SSH_CMD" \
+            package.json package-lock.json "$SSH_USER@$HOST:$APP_DIR/"
+
+          if [ -n "$DRY" ]; then
+            echo "DRY RUN - skipping npm ci, restart and health check."
+            exit 0
+          fi
+
+          # Dependencies are installed on the server so better-sqlite3's native
+          # binary is built against the Node that actually runs it.
+          $SSH_CMD "$SSH_USER@$HOST" "cd \"$APP_DIR\" && npm ci --omit=dev"
+          $SSH_CMD "$SSH_USER@$HOST" "sudo -n systemctl restart meem-api"
+
+      - name: Health check
+        if: ${{ inputs.dry_run != true && vars.APP_DIR != '' }}
+        env:
+          SSHPASS: ${{ secrets.PASSWORD }}
+          SSH_USER: ${{ secrets.USER }}
+          HOST: ${{ secrets.HOST }}
+        run: |
+          set -euo pipefail
+          SSH_CMD="sshpass -e ssh -p $PORT -o StrictHostKeyChecking=yes -o BatchMode=no"
+
+          # 1. The process itself is up and can open the database.
+          $SSH_CMD "$SSH_USER@$HOST" '
+            for i in $(seq 1 15); do
+              if curl -fsS --max-time 5 http://127.0.0.1:3001/api/resultados >/dev/null 2>&1; then
+                echo "API responding on 127.0.0.1:3001"; exit 0
+              fi
+              sleep 2
+            done
+            echo "API did not come up. Recent logs:"
+            journalctl -u meem-api -n 40 --no-pager 2>/dev/null \
+              || sudo -n journalctl -u meem-api -n 40 --no-pager 2>/dev/null \
+              || echo "(logs unavailable - add deploy to the systemd-journal group)"
+            exit 1
+          '
+
+          # 2. nginx actually proxies it - a misrouted prefix returns the SPA
+          #    fallback with a 200 and text/html, which would otherwise look fine.
+          CT="$(curl -sS -o /dev/null -w '%{content_type}' --max-time 15 "https://$HOST/api/resultados")"
+          echo "public /api/resultados content-type: $CT"
+          case "$CT" in
+            application/json*) echo "Proxy OK." ;;
+            *) echo "Expected JSON but got '$CT' - nginx is not proxying /api/ to the API."; exit 1 ;;
+          esac
