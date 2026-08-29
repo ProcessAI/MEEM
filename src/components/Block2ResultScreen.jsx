@@ -26,9 +26,9 @@ function Block2ResultScreen() {
   }
   
   const correctAnswers = {
-    pais: 'Brasil',
-    estado: 'Distrito Federal',
-    construcao: 'Universidade',
+    pais: gameAnswers.paisAlvo || 'Brasil',
+    estado: gameAnswers.estadoAlvo || 'Distrito Federal',
+    construcao: gameAnswers.construcaoAlvo || 'Urbano',
     diaNoite: getDayNightFromTime(getBrasiliaTime())
   }
 
@@ -46,7 +46,7 @@ function Block2ResultScreen() {
       isCorrect: gameAnswers.estado === correctAnswers.estado
     },
     {
-      question: 'Construção',
+      question: 'Local (Rural/Urbano)',
       userAnswer: gameAnswers.construcao || 'Não respondido',
       correctAnswer: correctAnswers.construcao,
       isCorrect: gameAnswers.construcao === correctAnswers.construcao

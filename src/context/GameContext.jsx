@@ -14,8 +14,11 @@ export function GameProvider({ children }) {
     mes: null,
     estacao: null,
     pais: null,
+    paisAlvo: null,
     estado: null,
+    estadoAlvo: null,
     construcao: null,
+    construcaoAlvo: null,
     diaNoite: null,
     palavras1: [],
     palavras2: [],
@@ -105,9 +108,9 @@ export function GameProvider({ children }) {
     }
     
     const correctAnswers = {
-      pais: 'Brasil',
-      estado: 'Distrito Federal',
-      construcao: 'Universidade',
+      pais: gameAnswers.paisAlvo || 'Brasil',
+      estado: gameAnswers.estadoAlvo || 'Distrito Federal',
+      construcao: gameAnswers.construcaoAlvo || 'Urbano',
       diaNoite: getDayNightFromTime(getBrasiliaTime())
     }
 
@@ -142,7 +145,7 @@ export function GameProvider({ children }) {
   }
 
   const calculateBlock9Score = () => {
-    const correctPhrase = 'lalalala'
+    const correctPhrase = 'lalala'
     if (gameAnswers.palmas) {
       // Remove espaços, pontuação e deixa minúsculo antes de comparar,
       // pra "la la la", "lá lá lá!", etc. também serem aceitos
@@ -176,9 +179,20 @@ export function GameProvider({ children }) {
   }
 
   const calculateBlock7Score = () => {
-    const correctPhrase = 'nem aqui nem ali nem lá'
-    if (gameAnswers.fala && gameAnswers.fala.toLowerCase().includes(correctPhrase)) {
-      return 1
+    const correctPhrase = 'nem aqui nem ali nem la'
+    if (gameAnswers.fala) {
+      // Normaliza só para a COMPARAÇÃO: remove pontuação (vírgula, ponto,
+      // exclamação, etc), acentos e espaços duplicados. O texto exibido na
+      // tela (gameAnswers.fala) continua intacto, do jeito que foi falado.
+      const normalized = gameAnswers.fala
+        .toLowerCase()
+        .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos (lá -> la)
+        .replace(/[.,;:!?"'-]/g, ' ') // troca pontuação por espaço (evita grudar palavras)
+        .replace(/\s+/g, ' ') // colapsa espaços duplicados
+        .trim()
+      if (normalized.includes(correctPhrase)) {
+        return 1
+      }
     }
     return 0
   }

@@ -1,8 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useGame } from '../context/GameContext'
-import { Trophy, Home, RefreshCw, CheckCircle2, XCircle, Download, Database, AlertTriangle, Loader2 } from 'lucide-react'
-import * as XLSX from 'xlsx'
+import { Trophy, Home, RefreshCw, CheckCircle2, XCircle, Database, AlertTriangle, Loader2 } from 'lucide-react'
 
 function CombinedResultScreen() {
   const navigate = useNavigate()
@@ -88,50 +87,6 @@ function CombinedResultScreen() {
     if (percentage >= 60) return 'Muito bem! Continue assim!'
     if (percentage >= 40) return 'Bom! Você pode melhorar!'
     return 'Continue praticando!'
-  }
-
-  // Exporta TODOS os resultados já salvos no banco de dados (não só os deste navegador)
-  const handleExportToExcel = async () => {
-    try {
-      const res = await fetch('/api/resultados')
-      if (!res.ok) throw new Error('Falha ao buscar resultados')
-      const todos = await res.json()
-
-      const linhas = todos.map(r => ({
-        'Nome': r.nome,
-        'Email': r.email || '',
-        'Idade': r.idade || '',
-        'Escolaridade': r.escolaridade || '',
-        'Data da Partida': r.data_partida,
-        'Horário da Partida': r.hora_partida,
-        'Bloco 1 - Orientação Temporal': r.bloco1,
-        'Bloco 2 - Conhecimento Geral': r.bloco2,
-        'Bloco 3 - Memória de Palavras': r.bloco3,
-        'Bloco 4 - Desafio Matemático': r.bloco4,
-        'Bloco 5 - Memória de Palavras': r.bloco5,
-        'Bloco 6 - Identificação de Imagens': r.bloco6,
-        'Bloco 7 - Reconhecimento de Fala': r.bloco7,
-        'Bloco 8 - Instruções e Fala': r.bloco8,
-        'Bloco 9 - Reconhecimento de Fala': r.bloco9,
-        'Bloco 10 - Ordenação de Frase': r.bloco10,
-        'Bloco 11 - Encaixe de Pentágonos': r.bloco11,
-        'Pontuação Total': r.pontuacao_total,
-        'Pontuação Máxima': r.pontuacao_maxima,
-        'Porcentagem de Acertos': `${Math.round((r.pontuacao_total / r.pontuacao_maxima) * 100)}%`
-      }))
-
-      const worksheet = XLSX.utils.json_to_sheet(linhas)
-      const workbook = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(workbook, worksheet, 'Resultados')
-
-      const now = new Date()
-      const dateStr = now.toLocaleDateString('pt-BR').replace(/\//g, '-')
-      const timeStr = now.toLocaleTimeString('pt-BR').replace(/:/g, '-')
-      XLSX.writeFile(workbook, `MEEM_Resultados_Todos_${dateStr}_${timeStr}.xlsx`)
-    } catch (err) {
-      console.error('Erro ao exportar do banco de dados:', err)
-      alert('Não foi possível buscar os resultados do banco de dados. Verifique se o servidor está rodando.')
-    }
   }
 
   return (
@@ -324,14 +279,6 @@ function CombinedResultScreen() {
           
           <div className="flex flex-col sm:flex-row gap-3 mb-6">
             <button
-              onClick={handleExportToExcel}
-              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm sm:text-base"
-            >
-              <Download className="w-5 h-5 shrink-0" />
-              Exportar Excel (Todos)
-            </button>
-            
-            <button
               onClick={() => navigate('/')}
               className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700 text-sm sm:text-base"
             >
@@ -341,7 +288,7 @@ function CombinedResultScreen() {
             
             <button
               onClick={() => navigate('/dias-embaralhados')}
-              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl border-2 border-violet-300 hover:border-violet-400 hover:bg-violet-50 transition-all duration-300 font-semibold text-gray-700 text-sm sm:text-base"
+              className="flex-1 min-w-0 flex items-center justify-center gap-2 py-3 px-4 sm:px-6 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300 text-sm sm:text-base"
             >
               <RefreshCw className="w-5 h-5 shrink-0" />
               Jogar Novamente
