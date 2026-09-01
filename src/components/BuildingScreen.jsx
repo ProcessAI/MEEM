@@ -32,6 +32,9 @@ function BuildingScreen() {
           const res = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`)
           if (!res.ok) throw new Error('geocode falhou')
           const data = await res.json()
+          // Se não veio nem país, não temos endereço nenhum pra esse ponto
+          // (ex: meio do oceano) — melhor avisar do que decidir "Urbano" no escuro
+          if (!data.pais) throw new Error('localização sem nenhum dado de endereço')
           setAnswer('construcaoAlvo', data.tipoLocal || 'Urbano')
           setStatus('success')
         } catch (err) {
@@ -78,7 +81,7 @@ function BuildingScreen() {
               <Building className="w-8 h-8 text-primary-600" />
             </div>
             <h2 className="text-3xl font-bold text-gray-800">
-             Em que tipo de local você está?
+              Você está em uma zona rural ou urbana?
             </h2>
           </div>
 
@@ -93,9 +96,16 @@ function BuildingScreen() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6 flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700">
-                Não foi possível obter sua localização automaticamente.
+                Não foi possível obter sua localização automaticamente. Usando "Urbano" como referência padrão.
               </p>
             </div>
+          )}
+
+          {status === 'success' && (
+            <p className="flex items-center gap-2 text-sm text-green-600 mb-2">
+              <MapPin className="w-4 h-4" />
+              Localização identificada.
+            </p>
           )}
 
           {status !== 'loading' && (

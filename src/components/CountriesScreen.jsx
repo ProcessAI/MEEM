@@ -3,6 +3,8 @@ import { useNavigate } from 'react-router-dom'
 import { useGame } from '../context/GameContext'
 import { Globe, ArrowLeft, ArrowRight, Shuffle, MapPin, AlertTriangle, Loader2 } from 'lucide-react'
 
+// Países "pegadinha" usados para completar as opções. O país real (detectado
+// pela localização) é adicionado a essa lista e tudo é embaralhado.
 const paisesDistratores = [
   'Argentina', 'Estados Unidos', 'França', 'Alemanha', 'Japão',
   'China', 'Reino Unido', 'Canadá', 'Austrália', 'Brasil'
@@ -17,8 +19,24 @@ function shuffle(arr) {
   return a
 }
 
+function normalize(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+}
+
+// Considera "parecido demais" se um nome contém o outro por completo
+// (ex: "Estados Unidos" está contido em "Estados Unidos da América")
+function isSimilarName(a, b) {
+  const na = normalize(a)
+  const nb = normalize(b)
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
 function buildOptions(realCountry) {
-  const distractors = paisesDistratores.filter(p => p !== realCountry).slice(0, 9)
+  const distractors = paisesDistratores
+    .filter(p => !isSimilarName(p, realCountry))
+    .slice(0, 9)
   return shuffle([realCountry, ...distractors])
 }
 
@@ -34,7 +52,7 @@ function CountriesScreen() {
   )
 
   useEffect(() => {
-    if (gameAnswers.paisAlvo) return 
+    if (gameAnswers.paisAlvo) return // já foi determinado antes (ex: voltou nessa tela)
 
     if (!navigator.geolocation) {
       setStatus('error')
@@ -51,9 +69,9 @@ function CountriesScreen() {
           const res = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`)
           if (!res.ok) throw new Error('geocode falhou')
           const data = await res.json()
-          const realCountry = data.pais || 'Brasil'
-          setOptions(buildOptions(realCountry))
-          setAnswer('paisAlvo', realCountry)
+          if (!data.pais) throw new Error('localização sem dados de endereço (ex: meio do oceano)')
+          setOptions(buildOptions(data.pais))
+          setAnswer('paisAlvo', data.pais)
           setStatus('success')
         } catch (err) {
           console.error('Erro ao determinar país pela localização:', err)
@@ -124,8 +142,16 @@ function CountriesScreen() {
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700">
                 Não foi possível obter sua localização automaticamente (permissão negada ou indisponível).
+                Usando "Brasil" como referência padrão.
               </p>
             </div>
+          )}
+
+          {status === 'success' && (
+            <p className="flex items-center gap-2 text-sm text-green-600 mb-2">
+              <MapPin className="w-4 h-4" />
+              Localização identificada.
+            </p>
           )}
           
           {status !== 'loading' && (

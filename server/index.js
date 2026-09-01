@@ -136,7 +136,10 @@ app.get('/api/geocode', async (req, res) => {
       return res.json(geocodeCache.get(cacheKey))
     }
 
-    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=pt-BR&zoom=8`
+    // zoom=18 pede o nível de detalhe mais fino (endereço/edificação), essencial
+    // pra conseguir enxergar vilarejo/fazenda (zoom baixo só retorna a cidade
+    // que engloba a região, mascarando áreas rurais dentro dela)
+    const url = `https://nominatim.openstreetmap.org/reverse?format=jsonv2&lat=${lat}&lon=${lon}&accept-language=pt-BR&zoom=18&addressdetails=1&extratags=1`
     const response = await fetch(url, {
       headers: {
         // Nominatim pede um User-Agent identificável para uso não-abusivo
@@ -149,21 +152,52 @@ app.get('/api/geocode', async (req, res) => {
     }
 
     const data = await response.json()
-
-    // Classifica rural x urbano com base nos campos de endereço que o
-    // OpenStreetMap retorna. Presença de cidade/bairro = urbano;
-    // só vilarejo/povoado/fazenda = rural.
     const address = data.address || {}
-    const urbanKeys = ['city', 'town', 'suburb', 'city_district', 'borough', 'quarter', 'municipality']
-    const ruralKeys = ['village', 'hamlet', 'isolated_dwelling', 'farm']
+
+    // Classifica rural x urbano. Prioriza o "addresstype" (tipo específico do
+    // ponto exato consultado) quando disponível, que é mais preciso do que só
+    // olhar a hierarquia do endereço — evita que uma fazenda dentro do
+    // território de um município grande seja classificada como "urbano" só
+    // por causa da cidade que a engloba administrativamente.
+    const tiposUrbanos = ['city', 'town', 'suburb', 'city_district', 'borough', 'quarter', 'residential', 'neighbourhood']
+    const tiposRurais = ['village', 'hamlet', 'isolated_dwelling', 'farm', 'farmyard', 'allotments']
+
     let tipoLocal = 'Urbano' // padrão seguro quando não dá pra classificar
-    if (ruralKeys.some(key => address[key]) && !urbanKeys.some(key => address[key])) {
+    if (tiposRurais.includes(data.addresstype)) {
       tipoLocal = 'Rural'
+    } else if (tiposUrbanos.includes(data.addresstype)) {
+      tipoLocal = 'Urbano'
+    } else if (data.category === 'highway') {
+      // Ponto mais próximo é uma estrada, não um bairro/vilarejo — comum em
+      // zona rural sem povoado mapeado no OSM (ex: "Região Administrativa"
+      // do DF, ou municípios enormes como Sorriso/MT, que misturam área
+      // urbana e rural sob o mesmo nome de cidade na hierarquia de endereço).
+      // "unclassified"/"track"/"path" já são, pela própria convenção do
+      // OpenStreetMap, vias secundárias tipicamente rurais — não precisa
+      // confirmar com o dado de superfície (que muitas vezes nem vem preenchido).
+      // "residential"/"primary"/"secondary"/"tertiary"/"trunk" ficam de fora
+      // (essas sim são tipicamente urbanas/vias principais).
+      const tiposViaRural = ['track', 'path', 'bridleway', 'unclassified', 'service']
+      if (tiposViaRural.includes(data.type)) {
+        tipoLocal = 'Rural'
+      } else {
+        const temChaveRural = ['village', 'hamlet', 'isolated_dwelling', 'farm'].some(k => address[k])
+        const temChaveUrbanaForte = ['city', 'town', 'suburb', 'city_district', 'borough', 'quarter'].some(k => address[k])
+        if (temChaveRural && !temChaveUrbanaForte) tipoLocal = 'Rural'
+      }
+    } else {
+      // addresstype não ajudou: olha as chaves do endereço (sem considerar
+      // "municipality"/"county", que são grandes demais pra indicar zona)
+      const temChaveRural = ['village', 'hamlet', 'isolated_dwelling', 'farm'].some(k => address[k])
+      const temChaveUrbanaForte = ['city', 'town', 'suburb', 'city_district', 'borough', 'quarter'].some(k => address[k])
+      if (temChaveRural && !temChaveUrbanaForte) tipoLocal = 'Rural'
     }
 
     const result = {
       pais: address.country || null,
-      estado: address.state || null,
+      // Nem todo país usa "state" pro primeiro nível administrativo;
+      // tenta algumas alternativas comuns antes de desistir
+      estado: address.state || address.province || address.region || address.state_district || null,
       tipoLocal
     }
 
