@@ -19,8 +19,22 @@ function shuffle(arr) {
   return a
 }
 
+function normalize(str) {
+  return str
+    .toLowerCase()
+    .normalize('NFD').replace(/[\u0300-\u036f]/g, '') // remove acentos
+}
+
+function isSimilarName(a, b) {
+  const na = normalize(a)
+  const nb = normalize(b)
+  return na === nb || na.includes(nb) || nb.includes(na)
+}
+
 function buildOptions(realState) {
-  const distractors = estadosDistratores.filter(e => e !== realState).slice(0, 9)
+  const distractors = estadosDistratores
+    .filter(e => !isSimilarName(e, realState))
+    .slice(0, 9)
   return shuffle([realState, ...distractors])
 }
 
@@ -53,9 +67,9 @@ function StatesScreen() {
           const res = await fetch(`/api/geocode?lat=${latitude}&lon=${longitude}`)
           if (!res.ok) throw new Error('geocode falhou')
           const data = await res.json()
-          const realState = data.estado || 'Distrito Federal'
-          setOptions(buildOptions(realState))
-          setAnswer('estadoAlvo', realState)
+          if (!data.estado) throw new Error('localização sem dado de estado/região')
+          setOptions(buildOptions(data.estado))
+          setAnswer('estadoAlvo', data.estado)
           setStatus('success')
         } catch (err) {
           console.error('Erro ao determinar estado pela localização:', err)
@@ -125,9 +139,16 @@ function StatesScreen() {
             <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 mb-6 flex items-start gap-2">
               <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0 mt-0.5" />
               <p className="text-sm text-amber-700">
-                Não foi possível obter sua localização automaticamente.
+                Não foi possível obter sua localização automaticamente. Usando "Distrito Federal" como referência padrão.
               </p>
             </div>
+          )}
+
+          {status === 'success' && (
+            <p className="flex items-center gap-2 text-sm text-green-600 mb-2">
+              <MapPin className="w-4 h-4" />
+              Localização identificada.
+            </p>
           )}
           
           {status !== 'loading' && (
